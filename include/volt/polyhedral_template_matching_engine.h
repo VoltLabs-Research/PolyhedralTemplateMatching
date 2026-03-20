@@ -2,7 +2,7 @@
 
 #include <volt/core/volt.h>
 #include <volt/analysis/analysis_context.h>
-#include <volt/analysis/polyhedral_template_matching.h>
+#include <volt/polyhedral_template_matching.h>
 #include <nlohmann/json.hpp>
 #include <map>
 

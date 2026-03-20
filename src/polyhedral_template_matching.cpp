@@ -1,4 +1,4 @@
-#include <volt/polyhedral_template_matching_service.h>
+#include <volt/polyhedral_template_matching.h>
 #include <volt/math/affine_transformation.h>
 
 #include <cassert>

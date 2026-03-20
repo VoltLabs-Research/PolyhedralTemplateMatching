@@ -54,6 +54,9 @@ endif()
 
 set(LIB_SOURCES
     ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching.cpp
+    ${CMAKE_SOURCE_DIR}/src/ptm_neighbor_finder.cpp
+    ${CMAKE_SOURCE_DIR}/src/structure_analysis_ptm.cpp
 )
 
 add_library(${PROJECT_NAME}_lib STATIC ${LIB_SOURCES})
@@ -82,4 +85,4 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(TARGETS ${PROJECT_NAME}_lib DESTINATION lib)
-install(FILES ${CMAKE_SOURCE_DIR}/include/volt/polyhedral_template_matching_service.h DESTINATION include/volt)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION include)

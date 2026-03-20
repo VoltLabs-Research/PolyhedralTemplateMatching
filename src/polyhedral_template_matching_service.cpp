@@ -164,7 +164,8 @@ json PolyhedralTemplateMatchingService::compute(
             StructureAnalysis::Mode::PTM,
             static_cast<float>(_rmsd)
         );
-        analysis.identifyStructures();
+        analysis.determineLocalStructuresWithPTM();
+        analysis.computeMaximumNeighborDistanceFromPTM();
 
         std::vector<int> atomStructureTypes(
             static_cast<size_t>(frame.natoms),
