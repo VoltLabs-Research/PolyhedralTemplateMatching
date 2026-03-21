@@ -7,12 +7,15 @@
 #include <tbb/parallel_reduce.h>
 
 #include <cmath>
+#include <array>
 #include <limits>
 #include <vector>
 
 namespace Volt {
 
 namespace {
+
+constexpr std::array<int, 6> kSimpleCubicTemplateToCanonicalNeighborSlot = {5, 4, 3, 2, 1, 0};
 
 bool setupPTM(AnalysisContext& context, Volt::PTM& ptm, size_t particleCount){
     ptm.setCalculateDefGradient(false);
@@ -175,8 +178,15 @@ void StructureAnalysis::determineLocalStructuresWithPTM() {
             kernel.cacheNeighbors(i, &cached[i]);
             kernel.identifyStructure(i, cached);
             const int start = offsets[i];
-            for(int j = 0; j < count; ++j){
-                indices[start + j] = kernel.getTemplateNeighbor(j).index;
+            if(_context.structureTypes->getInt(i) == StructureType::SC && count == static_cast<int>(kSimpleCubicTemplateToCanonicalNeighborSlot.size())) {
+                for(int templateSlot = 0; templateSlot < count; ++templateSlot){
+                    const int canonicalSlot = kSimpleCubicTemplateToCanonicalNeighborSlot[templateSlot];
+                    indices[start + canonicalSlot] = kernel.getTemplateNeighbor(templateSlot).index;
+                }
+            } else {
+                for(int j = 0; j < count; ++j){
+                    indices[start + j] = kernel.getTemplateNeighbor(j).index;
+                }
             }
         }
     });
