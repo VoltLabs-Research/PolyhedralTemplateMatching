@@ -14,6 +14,7 @@ public:
     PolyhedralTemplateMatchingService();
 
     void setRMSD(double rmsd);
+    void setDissolveSmallClusters(bool dissolveSmallClusters);
     
     json compute(
         const LammpsParser::Frame& frame,
@@ -22,6 +23,7 @@ public:
 
 private:
     double _rmsd;
+    bool _dissolveSmallClusters;
 };
     
 }

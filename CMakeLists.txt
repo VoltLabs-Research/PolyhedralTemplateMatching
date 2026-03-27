@@ -29,6 +29,23 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(
+    POLYHEDRAL_TEMPLATE_MATCHING_REFRESH_LOCAL_DEPS
+    "Refresh sibling CoreToolkit and StructureIdentification local builds before linking"
+    ON
+)
+
+set(
+    POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_CORETOOLKIT_BUILD_DIR
+    "${CMAKE_SOURCE_DIR}/../CoreToolkit/build-local/build/Release"
+    CACHE PATH "Local CoreToolkit build directory used during development"
+)
+set(
+    POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_BUILD_DIR
+    "${CMAKE_SOURCE_DIR}/../StructureIdentification/build-local/build/Release"
+    CACHE PATH "Local StructureIdentification build directory used during development"
+)
+
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type")
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release MinSizeRel RelWithDebInfo)
 
@@ -56,6 +73,7 @@ set(LIB_SOURCES
     ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching_service.cpp
     ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching.cpp
     ${CMAKE_SOURCE_DIR}/src/ptm_neighbor_finder.cpp
+    ${CMAKE_SOURCE_DIR}/src/ptm_cluster_builder.cpp
     ${CMAKE_SOURCE_DIR}/src/structure_analysis_ptm.cpp
 )
 
@@ -64,6 +82,7 @@ set_target_properties(${PROJECT_NAME}_lib PROPERTIES POSITION_INDEPENDENT_CODE O
 
 target_include_directories(${PROJECT_NAME}_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/../CoreToolkit/dependencies/ptm
 )
 target_precompile_headers(${PROJECT_NAME}_lib PRIVATE <volt/core/volt.h>)
 target_link_libraries(${PROJECT_NAME}_lib PUBLIC
@@ -82,6 +101,31 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     TBB::tbb
     ${PROJECT_NAME}_lib
 )
+
+if(POLYHEDRAL_TEMPLATE_MATCHING_REFRESH_LOCAL_DEPS)
+    set(_ptm_local_dep_commands)
+
+    if(EXISTS "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_CORETOOLKIT_BUILD_DIR}/CMakeCache.txt")
+        list(APPEND _ptm_local_dep_commands
+            COMMAND "${CMAKE_COMMAND}" --build "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_CORETOOLKIT_BUILD_DIR}" --parallel
+        )
+    endif()
+
+    if(EXISTS "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_BUILD_DIR}/CMakeCache.txt")
+        list(APPEND _ptm_local_dep_commands
+            COMMAND "${CMAKE_COMMAND}" --build "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_BUILD_DIR}" --parallel
+        )
+    endif()
+
+    if(_ptm_local_dep_commands)
+        add_custom_target(${PROJECT_NAME}_local_deps
+            ${_ptm_local_dep_commands}
+            COMMENT "Refreshing local development dependencies for ${PROJECT_NAME}"
+            VERBATIM
+        )
+        add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_local_deps)
+    endif()
+endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(TARGETS ${PROJECT_NAME}_lib DESTINATION lib)

@@ -8,7 +8,7 @@ void showUsage(const std::string& name){
     printUsageHeader(name, "Volt - Polyhedral Template Matching");
     std::cerr
         << "  --rmsd <float>                RMSD threshold for PTM. [default: 0.1]\n"
-        << "  --threads <int>               Max worker threads (TBB/OMP). [default: auto]\n";
+        << "  --dissolveSmallClusters       Mark small clusters as OTHER after building clusters.\n";
     printHelpOption();
 }
 
@@ -28,8 +28,7 @@ int main(int argc, char* argv[]){
         return filename.empty() ? 1 : 0;
     }
 
-    auto parallel = initParallelism(opts, false);
-    initLogging("volt-polyhedral-template-matching", parallel.threads);
+    initLogging("volt-polyhedral-template-matching");
 
     LammpsParser::Frame frame;
     if(!parseFrame(filename, frame)) return 1;
@@ -39,6 +38,7 @@ int main(int argc, char* argv[]){
 
     PolyhedralTemplateMatchingService analyzer;
     analyzer.setRMSD(getDouble(opts, "--rmsd", 0.1));
+    analyzer.setDissolveSmallClusters(hasOption(opts, "--dissolveSmallClusters"));
 
     spdlog::info("Starting PTM analysis...");
     json result = analyzer.compute(frame, outputBase);
