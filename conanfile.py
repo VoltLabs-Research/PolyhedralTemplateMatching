@@ -12,12 +12,13 @@ class PolyhedralTemplateMatchingConan(ConanFile):
     requires = (
         "boost/1.88.0",
         "onetbb/2021.12.0",
+        "common-neighbor-analysis/1.0.0",
         "coretoolkit/1.0.0",
         "structure-identification/1.0.0",
         "spdlog/1.14.1",
         "nlohmann_json/3.11.3",
     )
-    exports_sources = "CMakeLists.txt", "include/*", "src/*"
+    exports_sources = "CMakeLists.txt", "include/*", "src/*", "dependencies/*"
 
     def layout(self):
         cmake_layout(self)
@@ -44,6 +45,7 @@ class PolyhedralTemplateMatchingConan(ConanFile):
         self.cpp_info.requires = [
             "boost::headers",
             "onetbb::onetbb",
+            "common-neighbor-analysis::common-neighbor-analysis",
             "coretoolkit::coretoolkit",
             "structure-identification::structure-identification",
             "nlohmann_json::nlohmann_json",

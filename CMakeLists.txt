@@ -50,6 +50,7 @@ set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type")
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release MinSizeRel RelWithDebInfo)
 
 find_package(coretoolkit REQUIRED)
+find_package(common-neighbor-analysis REQUIRED)
 find_package(structure-identification REQUIRED)
 find_package(TBB REQUIRED)
 find_package(Boost REQUIRED)
@@ -69,27 +70,46 @@ else()
     message(FATAL_ERROR "PolyhedralTemplateMatching requires a Boost headers target")
 endif()
 
+set(POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_INCLUDE_DIR
+    "${CMAKE_SOURCE_DIR}/../StructureIdentification/include"
+)
+set(POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_LIB
+    "${CMAKE_SOURCE_DIR}/../StructureIdentification/build-local/build/Release/libstructure-identification.a"
+)
+
+set(POLYHEDRAL_TEMPLATE_MATCHING_STRUCTURE_IDENTIFICATION_TARGET structure-identification::structure-identification)
+if(EXISTS "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_LIB}")
+    add_library(polyhedral-template-matching-local-structure-identification STATIC IMPORTED)
+    set_target_properties(polyhedral-template-matching-local-structure-identification PROPERTIES
+        IMPORTED_LOCATION "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES "coretoolkit::coretoolkit;TBB::tbb;${POLYHEDRAL_TEMPLATE_MATCHING_BOOST_TARGET};spdlog::spdlog;nlohmann_json::nlohmann_json"
+    )
+    set(POLYHEDRAL_TEMPLATE_MATCHING_STRUCTURE_IDENTIFICATION_TARGET polyhedral-template-matching-local-structure-identification)
+endif()
+
 set(LIB_SOURCES
     ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching_service.cpp
     ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching.cpp
-    ${CMAKE_SOURCE_DIR}/src/ptm_neighbor_finder.cpp
-    ${CMAKE_SOURCE_DIR}/src/ptm_cluster_builder.cpp
+    ${CMAKE_SOURCE_DIR}/src/ptm_cluster_input_adapter.cpp
     ${CMAKE_SOURCE_DIR}/src/structure_analysis_ptm.cpp
 )
+file(GLOB PTM_VENDOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/dependencies/ptm/*.cpp)
 
-add_library(${PROJECT_NAME}_lib STATIC ${LIB_SOURCES})
+add_library(${PROJECT_NAME}_lib STATIC ${LIB_SOURCES} ${PTM_VENDOR_SOURCES})
 set_target_properties(${PROJECT_NAME}_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(${PROJECT_NAME}_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/../CoreToolkit/dependencies/ptm
+    ${CMAKE_SOURCE_DIR}/dependencies/ptm
 )
 target_precompile_headers(${PROJECT_NAME}_lib PRIVATE <volt/core/volt.h>)
 target_link_libraries(${PROJECT_NAME}_lib PUBLIC
     ${POLYHEDRAL_TEMPLATE_MATCHING_BOOST_TARGET}
     TBB::tbb
+    common-neighbor-analysis::common-neighbor-analysis
     coretoolkit::coretoolkit
-    structure-identification::structure-identification
+    ${POLYHEDRAL_TEMPLATE_MATCHING_STRUCTURE_IDENTIFICATION_TARGET}
     spdlog::spdlog
     nlohmann_json::nlohmann_json
 )
@@ -100,6 +120,7 @@ target_precompile_headers(${PROJECT_NAME} PRIVATE <volt/core/volt.h>)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     TBB::tbb
     ${PROJECT_NAME}_lib
+    ${POLYHEDRAL_TEMPLATE_MATCHING_STRUCTURE_IDENTIFICATION_TARGET}
 )
 
 if(POLYHEDRAL_TEMPLATE_MATCHING_REFRESH_LOCAL_DEPS)
@@ -130,3 +151,4 @@ endif()
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(TARGETS ${PROJECT_NAME}_lib DESTINATION lib)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION include)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/dependencies/ptm/ DESTINATION include FILES_MATCHING PATTERN "*.h")

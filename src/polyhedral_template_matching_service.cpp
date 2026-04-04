@@ -1,22 +1,25 @@
 #include <volt/analysis/analysis_context.h>
+#include <volt/analysis/cluster_builder.h>
 #include <volt/analysis/cluster_graph_export.h>
 #include <volt/analysis/structure_analysis.h>
 #include <volt/core/analysis_result.h>
-#include <volt/ptm_cluster_builder.h>
 #include <volt/polyhedral_template_matching_service.h>
+#include <volt/ptm_structure_analysis.h>
+#include <volt/ptm_cluster_input_adapter.h>
 #include <volt/core/frame_adapter.h>
 #include <volt/core/particle_property.h>
 #include <volt/structures/crystal_structure_types.h>
-#include <volt/utilities/json_utils.h>
-#include <spdlog/spdlog.h>
-#include <algorithm>
-#include <utility>
 
 namespace Volt{
 
 PolyhedralTemplateMatchingService::PolyhedralTemplateMatchingService()
-    : _rmsd(0.1)
+    : _inputCrystalStructure(LATTICE_FCC)
+    , _rmsd(0.1)
     , _dissolveSmallClusters(false){}
+
+void PolyhedralTemplateMatchingService::setInputCrystalStructure(LatticeStructureType structureType){
+    _inputCrystalStructure = structureType;
+}
 
 void PolyhedralTemplateMatchingService::setRMSD(double rmsd){
     _rmsd = rmsd;
@@ -44,7 +47,7 @@ json PolyhedralTemplateMatchingService::compute(
     AnalysisContext context(
         positions.get(),
         frame.simulationCell,
-        LATTICE_FCC,
+        _inputCrystalStructure,
         nullptr,
         structureTypes.get(),
         std::move(preferredOrientations)
@@ -52,17 +55,15 @@ json PolyhedralTemplateMatchingService::compute(
 
     try{
         StructureAnalysis analysis(context);
-        PTMComputationData ptmData = analysis.determineLocalStructuresWithPTM(_rmsd);
-        analysis.computeMaximumNeighborDistanceFromPTM();
-        PTMClusterBuilder clusterBuilder(
-            analysis,
-            context,
-            std::move(ptmData.rmsd),
-            std::move(ptmData.orientations)
-        );
+        determineLocalStructuresWithPTM(analysis, _rmsd);
+        computeMaximumNeighborDistanceFromPTM(analysis);
+        PTMClusterInputAdapter clusterInputAdapter;
+        clusterInputAdapter.prepare(analysis, context);
+        ClusterBuilder clusterBuilder(analysis, context);
         clusterBuilder.build(_dissolveSmallClusters);
 
         json result = AnalysisResult::success();
+
         if(!outputBase.empty()){
             const std::string dumpPath = outputBase + "_annotated.dump";
             if(!context.writeDumpWithContext(frame, dumpPath, &analysis)){

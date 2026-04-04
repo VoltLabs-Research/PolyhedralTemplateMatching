@@ -3,6 +3,7 @@
 #include <volt/core/volt.h>
 #include <nlohmann/json.hpp>
 #include <volt/core/lammps_parser.h>
+#include <volt/structures/crystal_structure_types.h>
 #include <string>
 
 namespace Volt{
@@ -13,6 +14,7 @@ class PolyhedralTemplateMatchingService{
 public:
     PolyhedralTemplateMatchingService();
 
+    void setInputCrystalStructure(LatticeStructureType structureType);
     void setRMSD(double rmsd);
     void setDissolveSmallClusters(bool dissolveSmallClusters);
     
@@ -22,6 +24,7 @@ public:
     );
 
 private:
+    LatticeStructureType _inputCrystalStructure;
     double _rmsd;
     bool _dissolveSmallClusters;
 };

@@ -36,7 +36,7 @@ public:
     };
 
     static constexpr int MAX_INPUT_NEIGHBORS = 18;
-    static constexpr int MAX_OUTPUT_NEIGHBORS = 16;
+    static constexpr int MAX_OUTPUT_NEIGHBORS = 18;
 
     static StructureType ptmToStructureType(int type);
     static int toPtmStructureType(StructureType type);
@@ -45,6 +45,10 @@ public:
 
     void setRmsdCutoff(double cutoff){
         _rmsdCutoff = cutoff;
+    }
+
+    void setInputCrystalStructure(LatticeStructureType structureType){
+        _inputCrystalStructure = structureType;
     }
 
     double rmsdCutoff() const{
@@ -68,6 +72,30 @@ public:
         const Quaternion& qb,
         Quaternion &output
     ){
+        if(structureTypeA == structureTypeB){
+            double orientA[4] = { qa.w(), qa.x(), qa.y(), qa.z() };
+            double orientB[4] = { qb.w(), qb.x(), qb.y(), qb.z() };
+            double disorientation = std::numeric_limits<double>::infinity();
+
+            switch(structureTypeA){
+                case StructureType::SC:
+                case StructureType::FCC:
+                case StructureType::BCC:
+                case StructureType::CUBIC_DIAMOND:
+                    disorientation = static_cast<double>(ptm::quat_disorientation_cubic(orientA, orientB));
+                    break;
+                case StructureType::HCP:
+                case StructureType::HEX_DIAMOND:
+                    disorientation = static_cast<double>(ptm::quat_disorientation_hcp_conventional(orientA, orientB));
+                    break;
+                default:
+                    break;
+            }
+
+            output = qb;
+            return disorientation * (180 / M_PI);
+        }
+
         double disorientation = std::numeric_limits<double>::infinity();
         double orientA[4] = { qa.w(), qa.x(), qa.y(), qa.z() };
         double orientB[4] = { qb.w(), qb.x(), qb.y(), qb.z() };
@@ -193,6 +221,7 @@ private:
     friend class Kernel;
     size_t _particleCount = 0;
     const int* _particleTypes = nullptr;
+    LatticeStructureType _inputCrystalStructure = LATTICE_OTHER;
 
     std::array<bool, static_cast<size_t>(StructureType::NUM_STRUCTURE_TYPES)> _typesToIdentify = {};
     bool _identifyOrdering = false;
