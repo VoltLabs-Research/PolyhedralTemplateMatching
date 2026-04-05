@@ -32,7 +32,8 @@ void PolyhedralTemplateMatchingService::setDissolveSmallClusters(bool dissolveSm
 
 json PolyhedralTemplateMatchingService::compute(
     const LammpsParser::Frame& frame,
-    const std::string& outputBase
+    const std::string& outputBase,
+    const std::string& inputDumpPath
 ){
     std::string frameError;
     auto session = AnalysisPipelineUtils::prepareAnalysisSession(
@@ -59,6 +60,7 @@ json PolyhedralTemplateMatchingService::compute(
         if(!AnalysisPipelineUtils::appendClusterOutputs(
             frame,
             outputBase,
+            inputDumpPath,
             context,
             analysis,
             result,

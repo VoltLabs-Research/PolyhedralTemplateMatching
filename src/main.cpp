@@ -10,7 +10,6 @@ void showUsage(const std::string& name){
     std::cerr
         << "  --crystalStructure <type>     Crystal structure. (SC|FCC|HCP|BCC|CUBIC_DIAMOND|HEX_DIAMOND) [default: FCC]\n"
         << "  --rmsd <float>                RMSD threshold for PTM. [default: 0.1]\n"
-        << "  --no-write                    Run analysis without writing dump or cluster tables.\n"
         << "  --dissolveSmallClusters       Mark small clusters as OTHER after building clusters.\n";
     printHelpOption();
 }
@@ -28,14 +27,8 @@ int main(int argc, char* argv[]){
     LammpsParser::Frame frame;
     if(!parseFrame(filename, frame)) return 1;
 
-    const bool noWrite = hasOption(opts, "--no-write");
-    if(noWrite){
-        outputBase.clear();
-        spdlog::info("Output writing disabled for this run.");
-    }else{
-        outputBase = deriveOutputBase(filename, outputBase);
-        spdlog::info("Output base: {}", outputBase);
-    }
+    outputBase = deriveOutputBase(filename, outputBase);
+    spdlog::info("Output base: {}", outputBase);
 
     PolyhedralTemplateMatchingService analyzer;
     LatticeStructureType crystalStructure = LATTICE_FCC;
@@ -49,7 +42,7 @@ int main(int argc, char* argv[]){
     analyzer.setDissolveSmallClusters(hasOption(opts, "--dissolveSmallClusters"));
 
     spdlog::info("Starting PTM analysis...");
-    json result = analyzer.compute(frame, outputBase);
+    json result = analyzer.compute(frame, outputBase, filename);
     if(result.value("is_failed", false)){
         spdlog::error("Analysis failed: {}", result.value("error", "Unknown error"));
         return 1;

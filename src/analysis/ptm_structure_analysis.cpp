@@ -3,7 +3,7 @@
 #include <volt/topology/crystal_coordination_topology_init.h>
 #include <volt/analysis/nearest_neighbor_finder.h>
 
-#include "internal/ptm_structure_analysis_detail.h"
+#include <volt/analysis/internal/ptm_structure_analysis_detail.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>

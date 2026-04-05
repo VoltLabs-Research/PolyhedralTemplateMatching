@@ -1,5 +1,5 @@
-#include "internal/ptm_crystal_info_provider.h"
-#include "internal/ptm_structure_analysis_detail.h"
+#include <volt/analysis/internal/ptm_crystal_info_provider.h>
+#include <volt/analysis/internal/ptm_structure_analysis_detail.h>
 
 #include <volt/analysis/crystal_symmetry_utils.h>
 #include <volt/topology/crystal_coordination_topology.h>
