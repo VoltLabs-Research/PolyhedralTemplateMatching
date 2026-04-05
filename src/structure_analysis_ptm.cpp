@@ -1,4 +1,6 @@
+#include <volt/analysis/symmetry_utils.h>
 #include <volt/coordination_structures.h>
+#include <volt/coordination_structures_utils.h>
 #include <volt/analysis/nearest_neighbor_finder.h>
 
 #include "ptm_structure_analysis_detail.h"
@@ -11,7 +13,6 @@
 #include <array>
 #include <memory>
 #include <limits>
-#include <mutex>
 #include <vector>
 
 namespace Volt::PtmStructureAnalysisDetail {
@@ -21,23 +22,6 @@ bool setupPTM(StructureContext& context, Volt::PTM& ptm, size_t particleCount){
     ptm.setRmsdCutoff(std::numeric_limits<double>::infinity());
     ptm.setInputCrystalStructure(context.inputCrystalType);
     return ptm.prepare(context.positions->constDataPoint3(), particleCount, context.simCell);
-}
-
-std::uint64_t fullSymmetryMask(int symmetryCount){
-    if(symmetryCount <= 0){
-        return 0;
-    }
-    if(symmetryCount >= 63){
-        return std::numeric_limits<std::uint64_t>::max();
-    }
-    return (std::uint64_t{1} << symmetryCount) - 1;
-}
-
-void ensureCoordinationStructuresInitialized(){
-    static std::once_flag initFlag;
-    std::call_once(initFlag, []() {
-        CoordinationStructures::initializeStructures();
-    });
 }
 
 } // namespace Volt::PtmStructureAnalysisDetail
@@ -145,7 +129,7 @@ void determineLocalStructuresWithPTM(
             context.atomAllowedSymmetryMasks->setInt64(
                 i,
                 static_cast<std::int64_t>(
-                    PtmStructureAnalysisDetail::fullSymmetryMask(
+                    AnalysisSymmetryUtils::fullSymmetryMask(
                         PtmStructureAnalysisDetail::ptmCrystalInfoProvider()->symmetryPermutationCount(type)
                     )
                 )
@@ -161,7 +145,7 @@ void determineLocalStructuresWithPTM(
         context.inputCrystalType == LATTICE_CUBIC_DIAMOND ||
         context.inputCrystalType == LATTICE_HEX_DIAMOND
     ){
-        PtmStructureAnalysisDetail::ensureCoordinationStructuresInitialized();
+        ensureCoordinationStructuresInitialized();
         canonicalDiamondNeighbors.resize(N);
         canonicalDiamondShellValid.assign(N, 0);
         for(auto& row : canonicalDiamondNeighbors){

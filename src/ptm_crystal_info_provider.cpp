@@ -1,7 +1,9 @@
 #include "ptm_crystal_info_provider.h"
 #include "ptm_structure_analysis_detail.h"
 
+#include <volt/analysis/symmetry_utils.h>
 #include <volt/coordination_structures.h>
+#include <volt/coordination_structures_utils.h>
 #include <volt/polyhedral_template_matching.h>
 
 #include <ptm_constants.h>
@@ -323,22 +325,7 @@ PtmCrystalData buildCrystalData(int structureType){
         }
     }
 
-    for(std::size_t s1 = 0; s1 < data.symmetries.size(); ++s1){
-        data.symmetries[s1].inverseProduct.reserve(data.symmetries.size());
-        for(std::size_t s2 = 0; s2 < data.symmetries.size(); ++s2){
-            const Matrix3 inverseProduct =
-                data.symmetries[s2].transformation.inverse() *
-                data.symmetries[s1].transformation;
-            int matchIndex = 0;
-            for(std::size_t candidate = 0; candidate < data.symmetries.size(); ++candidate){
-                if(data.symmetries[candidate].transformation.equals(inverseProduct)){
-                    matchIndex = static_cast<int>(candidate);
-                    break;
-                }
-            }
-            data.symmetries[s1].inverseProduct.push_back(matchIndex);
-        }
-    }
+    AnalysisSymmetryUtils::calculateSymmetryProducts(data.symmetries);
 
     return data;
 }
@@ -355,26 +342,7 @@ PtmCrystalInfoProvider::PtmCrystalInfoProvider(){
 }
 
 int PtmCrystalInfoProvider::findClosestSymmetryPermutation(int structureType, const Matrix3& rotation) const{
-    const auto& symmetries = dataFor(structureType).symmetries;
-    int bestIndex = 0;
-    double bestDeviation = std::numeric_limits<double>::max();
-
-    for(std::size_t symmetryIndex = 0; symmetryIndex < symmetries.size(); ++symmetryIndex){
-        const Matrix3& symmetry = symmetries[static_cast<std::size_t>(symmetryIndex)].transformation;
-        double deviation = 0.0;
-        for(int row = 0; row < 3; ++row){
-            for(int column = 0; column < 3; ++column){
-                const double diff = rotation(row, column) - symmetry(row, column);
-                deviation += diff * diff;
-            }
-        }
-        if(deviation < bestDeviation){
-            bestDeviation = deviation;
-            bestIndex = static_cast<int>(symmetryIndex);
-        }
-    }
-
-    return bestIndex;
+    return AnalysisSymmetryUtils::findClosestSymmetryPermutation(dataFor(structureType).symmetries, rotation);
 }
 
 int PtmCrystalInfoProvider::coordinationNumber(int structureType) const{

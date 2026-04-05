@@ -16,19 +16,11 @@ void showUsage(const std::string& name){
 }
 
 int main(int argc, char* argv[]){
-    // TODO: hmmmmmmm... perhaps another approach for
-    // defined required arguments, this hack is ugly
-    if(argc < 2){
-        showUsage(argv[0]);
-        return 1;
-    }
-
     std::string filename, outputBase;
     auto opts = parseArgs(argc, argv, filename, outputBase);
-
-    if(hasOption(opts, "--help") || filename.empty()){
-        showUsage(argv[0]);
-        return filename.empty() ? 1 : 0;
+    if(const int startupStatus = handleHelpOrMissingInput(argc, argv, opts, filename, showUsage);
+       startupStatus >= 0){
+        return startupStatus;
     }
 
     initLogging("volt-polyhedral-template-matching");
