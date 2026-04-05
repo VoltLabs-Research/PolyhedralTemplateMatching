@@ -1,23 +1,10 @@
 #include <volt/ptm_cluster_input_adapter.h>
 
+#include "ptm_structure_analysis_detail.h"
+
 #include <cstdint>
-#include <limits>
 
 namespace Volt{
-
-namespace{
-
-std::uint64_t fullSymmetryMask(int symmetryCount){
-    if(symmetryCount <= 0){
-        return 0;
-    }
-    if(symmetryCount >= 63){
-        return std::numeric_limits<std::uint64_t>::max();
-    }
-    return (std::uint64_t{1} << symmetryCount) - 1;
-}
-
-}
 
 void PTMClusterInputAdapter::prepare(StructureAnalysis& analysis, AnalysisContext& context){
     // PTM should provide cluster inputs, not replace the generic cluster-growth logic.
@@ -50,7 +37,9 @@ void PTMClusterInputAdapter::prepare(StructureAnalysis& analysis, AnalysisContex
 
         context.atomAllowedSymmetryMasks->setInt64(
             atomIndex,
-            static_cast<std::int64_t>(fullSymmetryMask(analysis.symmetryPermutationCount(structureType)))
+            static_cast<std::int64_t>(
+                PtmStructureAnalysisDetail::fullSymmetryMask(analysis.symmetryPermutationCount(structureType))
+            )
         );
     }
 }
