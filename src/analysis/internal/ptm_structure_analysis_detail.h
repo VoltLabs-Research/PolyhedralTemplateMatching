@@ -1,7 +1,7 @@
 #pragma once
 
 #include <volt/analysis/structure_analysis.h>
-#include <volt/polyhedral_template_matching.h>
+#include <volt/analysis/ptm.h>
 #include "ptm_crystal_info_provider.h"
 
 #include <array>

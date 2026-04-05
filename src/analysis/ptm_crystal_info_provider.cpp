@@ -1,10 +1,10 @@
-#include "ptm_crystal_info_provider.h"
-#include "ptm_structure_analysis_detail.h"
+#include "internal/ptm_crystal_info_provider.h"
+#include "internal/ptm_structure_analysis_detail.h"
 
-#include <volt/analysis/symmetry_utils.h>
-#include <volt/coordination_structures.h>
-#include <volt/coordination_structures_utils.h>
-#include <volt/polyhedral_template_matching.h>
+#include <volt/analysis/crystal_symmetry_utils.h>
+#include <volt/topology/crystal_coordination_topology.h>
+#include <volt/topology/crystal_coordination_topology_init.h>
+#include <volt/analysis/ptm.h>
 
 #include <ptm_constants.h>
 #include <ptm_initialize_data.h>

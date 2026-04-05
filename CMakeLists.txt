@@ -89,11 +89,11 @@ if(EXISTS "${POLYHEDRAL_TEMPLATE_MATCHING_LOCAL_STRUCTURE_IDENTIFICATION_LIB}")
 endif()
 
 set(LIB_SOURCES
-    ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching_service.cpp
-    ${CMAKE_SOURCE_DIR}/src/polyhedral_template_matching.cpp
-    ${CMAKE_SOURCE_DIR}/src/ptm_cluster_input_adapter.cpp
-    ${CMAKE_SOURCE_DIR}/src/ptm_crystal_info_provider.cpp
-    ${CMAKE_SOURCE_DIR}/src/structure_analysis_ptm.cpp
+    ${CMAKE_SOURCE_DIR}/src/analysis/ptm_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/analysis/ptm.cpp
+    ${CMAKE_SOURCE_DIR}/src/analysis/ptm_cluster_input_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/src/analysis/ptm_crystal_info_provider.cpp
+    ${CMAKE_SOURCE_DIR}/src/analysis/ptm_structure_analysis.cpp
 )
 file(GLOB PTM_VENDOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/dependencies/ptm/*.cpp)
 

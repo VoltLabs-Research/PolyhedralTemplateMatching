@@ -1,5 +1,5 @@
 #include <volt/cli/common.h>
-#include <volt/polyhedral_template_matching_service.h>
+#include <volt/analysis/ptm_service.h>
 #include <volt/structures/crystal_structure_types.h>
 
 using namespace Volt;
