@@ -2,9 +2,9 @@
 
 #include <volt/analysis/structure_analysis.h>
 
-#include <array>
 #include <cstddef>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace Volt::PtmStructureAnalysisDetail{
@@ -20,6 +20,7 @@ struct PtmCrystalData{
     std::vector<Vector3> latticeVectors;
     std::vector<std::array<int, 2>> commonNeighbors;
     std::vector<PtmSymmetryPermutation> symmetries;
+    std::vector<int> templateToCanonicalNeighborSlot;
 };
 
 class PtmCrystalInfoProvider final : public StructureAnalysisCrystalInfo{
@@ -34,14 +35,16 @@ public:
     const Matrix3& symmetryTransformation(int structureType, int symmetryIndex) const override;
     int symmetryInverseProduct(int structureType, int symmetryIndex, int transformationIndex) const override;
     const Vector3& latticeVector(int structureType, int latticeVectorIndex) const override;
+    int templateToCanonicalNeighborSlot(int structureType, int templateSlot) const;
 
 private:
-    void initialize(int structureType);
+    void initialize(int structureType) const;
     const PtmCrystalData& dataFor(int structureType) const;
 
-    std::array<PtmCrystalData, static_cast<std::size_t>(StructureType::NUM_STRUCTURE_TYPES)> _data{};
+    mutable std::unordered_map<int, PtmCrystalData> _data;
 };
 
 std::shared_ptr<const StructureAnalysisCrystalInfo> ptmCrystalInfoProvider();
+int ptmTemplateToCanonicalNeighborSlot(int structureType, int templateSlot);
 
 }

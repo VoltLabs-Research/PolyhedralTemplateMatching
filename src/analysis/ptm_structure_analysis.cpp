@@ -2,8 +2,10 @@
 #include <volt/topology/crystal_coordination_topology.h>
 #include <volt/topology/crystal_coordination_topology_init.h>
 #include <volt/analysis/nearest_neighbor_finder.h>
+#include <volt/structures/crystal_topology_registry.h>
 
 #include <volt/analysis/internal/ptm_structure_analysis_detail.h>
+#include <volt/analysis/ptm_local_atom_state.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -86,7 +88,8 @@ void computeMaximumNeighborDistanceFromPTM(StructureAnalysis& analysis){
 
 void determineLocalStructuresWithPTM(
     StructureAnalysis& analysis,
-    double rmsdCutoff
+    double rmsdCutoff,
+    std::shared_ptr<std::vector<PtmLocalAtomState>> atomStates
 ) {
     StructureContext& context = analysis.context();
     const size_t N = context.atomCount();
@@ -110,10 +113,14 @@ void determineLocalStructuresWithPTM(
         0
     );
 
+    if(atomStates){
+        atomStates->assign(N, PtmLocalAtomState{});
+    }
+
     std::vector<uint64_t> cached(N, 0ull);
     std::vector<int> localCounts(N, 0);
-    std::vector<std::array<int, MAX_NEIGHBORS>> canonicalDiamondNeighbors;
-    std::vector<unsigned char> canonicalDiamondShellValid;
+    std::vector<std::array<int, MAX_NEIGHBORS>> canonicalExpandedNeighbors;
+    std::vector<unsigned char> canonicalExpandedShellValid;
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, N), [&](const auto &range){
         PTM::Kernel kernel(ptm);
@@ -138,61 +145,69 @@ void determineLocalStructuresWithPTM(
             const int neighborCount = kernel.numTemplateNeighbors();
             localCounts[i] = neighborCount;
             context.neighborCounts->setInt(i, neighborCount);
+
+            if(atomStates){
+                auto& atomState = (*atomStates)[i];
+                atomState.orientation = kernel.orientation().normalized();
+                atomState.rmsd = kernel.rmsd();
+                atomState.valid = true;
+            }
         }
     });
 
-    if(
-        context.inputCrystalType == LATTICE_CUBIC_DIAMOND ||
-        context.inputCrystalType == LATTICE_HEX_DIAMOND
-    ){
+    const CrystalTopologyEntry* inputTopology = crystalTopologyByLatticeType(context.inputCrystalType);
+    const bool requiresExpandedShellOrdering =
+        inputTopology &&
+        inputTopology->cnaLocalEnvironment.construction == CnaLocalEnvironmentConstruction::FirstShellExpansion;
+
+    if(requiresExpandedShellOrdering){
         ensureCoordinationStructuresInitialized();
-        canonicalDiamondNeighbors.resize(N);
-        canonicalDiamondShellValid.assign(N, 0);
-        for(auto& row : canonicalDiamondNeighbors){
+        canonicalExpandedNeighbors.resize(N);
+        canonicalExpandedShellValid.assign(N, 0);
+        for(auto& row : canonicalExpandedNeighbors){
             row.fill(-1);
         }
 
         auto cnaOrderedStructureTypes = std::make_shared<ParticleProperty>(N, DataType::Int, 1, 0, true);
-        CoordinationStructures diamondCoordinationStructures(
+        CoordinationStructures expandedShellCoordinationStructures(
             cnaOrderedStructureTypes.get(),
             context.inputCrystalType,
             true,
             context.simCell
         );
-        NearestNeighborFinder diamondOrderingFinder(MAX_NEIGHBORS);
-        if(!diamondOrderingFinder.prepare(context.positions, context.simCell, context.particleSelection)){
-            throw std::runtime_error("Error trying to prepare PTM diamond ordering finder.");
+        NearestNeighborFinder expandedShellOrderingFinder(MAX_NEIGHBORS);
+        if(!expandedShellOrderingFinder.prepare(context.positions, context.simCell, context.particleSelection)){
+            throw std::runtime_error("Error trying to prepare PTM expanded-shell ordering finder.");
         }
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, N), [&](const auto& range){
             for(size_t i = range.begin(); i < range.end(); ++i){
                 const int structureType = context.structureTypes->getInt(i);
-                if(
-                    structureType != StructureType::CUBIC_DIAMOND &&
-                    structureType != StructureType::HEX_DIAMOND
-                ){
+                const CrystalTopologyEntry* topology = crystalTopologyByStructureType(structureType);
+                if(!topology ||
+                   topology->coordinationNumber != localCounts[i] ||
+                   topology->cnaLocalEnvironment.construction != CnaLocalEnvironmentConstruction::FirstShellExpansion){
                     continue;
                 }
-                if(localCounts[i] != 16){
-                    continue;
-                }
-
                 int cnaOrderedCount = 0;
-                if(diamondCoordinationStructures.determineLocalStructure(
-                    diamondOrderingFinder,
+                if(expandedShellCoordinationStructures.determineLocalStructure(
+                    expandedShellOrderingFinder,
                     static_cast<int>(i),
                     &cnaOrderedCount,
-                    canonicalDiamondNeighbors[i].data()
+                    canonicalExpandedNeighbors[i].data()
                 ) > 0.0){
                     const int cnaOrderedType = cnaOrderedStructureTypes->getInt(i);
+                    const CrystalTopologyEntry* orderedTopology = crystalTopologyByStructureType(cnaOrderedType);
                     if(
-                        cnaOrderedCount == 16 &&
-                        (cnaOrderedType == StructureType::CUBIC_DIAMOND || cnaOrderedType == StructureType::HEX_DIAMOND)
+                        orderedTopology &&
+                        cnaOrderedCount == topology->coordinationNumber &&
+                        orderedTopology->coordinationNumber == topology->coordinationNumber &&
+                        orderedTopology->cnaLocalEnvironment.construction == topology->cnaLocalEnvironment.construction
                     ){
                         if(cnaOrderedType != structureType){
-                            context.structureTypes->setInt(i, cnaOrderedType);
+                            context.structureTypes->setInt(i, orderedTopology->structureType);
                         }
-                        canonicalDiamondShellValid[i] = 1;
+                        canonicalExpandedShellValid[i] = 1;
                         continue;
                     }
                 }
@@ -201,14 +216,13 @@ void determineLocalStructuresWithPTM(
 
         for(size_t i = 0; i < N; ++i){
             const int structureType = context.structureTypes->getInt(i);
-            if(
-                structureType != StructureType::CUBIC_DIAMOND &&
-                structureType != StructureType::HEX_DIAMOND
-            ){
+            const CrystalTopologyEntry* topology = crystalTopologyByStructureType(structureType);
+            if(!topology ||
+               topology->cnaLocalEnvironment.construction != CnaLocalEnvironmentConstruction::FirstShellExpansion){
                 continue;
             }
 
-            if(canonicalDiamondShellValid[i]){
+            if(canonicalExpandedShellValid[i]){
                 continue;
             }
 
@@ -243,29 +257,77 @@ void determineLocalStructuresWithPTM(
             const int start = offsets[i];
 
             const int structureType = context.structureTypes->getInt(i);
-            if(
-                (structureType == StructureType::CUBIC_DIAMOND || structureType == StructureType::HEX_DIAMOND) &&
-                count == 16 &&
-                canonicalDiamondShellValid[i]
-            ){
+            if(canonicalExpandedShellValid.size() == N && canonicalExpandedShellValid[i]){
                 for(int neighborSlot = 0; neighborSlot < count; ++neighborSlot){
-                    indices[start + neighborSlot] = canonicalDiamondNeighbors[i][static_cast<std::size_t>(neighborSlot)];
+                    indices[start + neighborSlot] = canonicalExpandedNeighbors[i][static_cast<std::size_t>(neighborSlot)];
                 }
                 continue;
             }
-            
-            if(structureType == StructureType::SC && count == static_cast<int>(PtmStructureAnalysisDetail::kSimpleCubicTemplateToCanonicalNeighborSlot.size())) {
-                for(int templateSlot = 0; templateSlot < count; ++templateSlot){
-                    const int canonicalSlot = PtmStructureAnalysisDetail::kSimpleCubicTemplateToCanonicalNeighborSlot[templateSlot];
-                    indices[start + canonicalSlot] = kernel.getTemplateNeighbor(templateSlot).index;
+
+            bool assignedAllCanonicalSlots = true;
+            std::array<unsigned char, MAX_NEIGHBORS> slotAssigned{};
+            slotAssigned.fill(0);
+            for(int templateSlot = 0; templateSlot < count; ++templateSlot){
+                const int canonicalSlot = PtmStructureAnalysisDetail::ptmTemplateToCanonicalNeighborSlot(
+                    structureType,
+                    templateSlot
+                );
+                if(canonicalSlot < 0 || canonicalSlot >= count || slotAssigned[static_cast<std::size_t>(canonicalSlot)]){
+                    assignedAllCanonicalSlots = false;
+                    break;
                 }
-            } else {
+                indices[start + canonicalSlot] = kernel.getTemplateNeighbor(templateSlot).index;
+                slotAssigned[static_cast<std::size_t>(canonicalSlot)] = 1;
+            }
+
+            if(!assignedAllCanonicalSlots){
                 for(int j = 0; j < count; ++j){
                     indices[start + j] = kernel.getTemplateNeighbor(j).index;
                 }
             }
         }
     });
+
+    std::vector<Vector3> neighborVectorOverrides(
+        N * static_cast<std::size_t>(MAX_NEIGHBORS),
+        Vector3::Zero()
+    );
+    for(std::size_t atomIndex = 0; atomIndex < N; ++atomIndex){
+        const int structureType = context.structureTypes->getInt(atomIndex);
+        if(structureType == LATTICE_OTHER){
+            continue;
+        }
+
+        const SharedCrystalTopology* topology = sharedCrystalTopology(structureType);
+        const CrystalTopologyEntry* topologyEntry = crystalTopologyByStructureType(structureType);
+        if(!topology || !topologyEntry){
+            continue;
+        }
+
+        const int exportableCount = std::min(localCounts[atomIndex], topology->coordinationNumber);
+        const int exportSymmetryIndex = topologyEntry->exportSymmetryIndex >= 0 &&
+            topologyEntry->exportSymmetryIndex < static_cast<int>(topology->symmetries.size())
+            ? topologyEntry->exportSymmetryIndex
+            : 0;
+        for(int neighborSlot = 0; neighborSlot < exportableCount; ++neighborSlot){
+            int latticeVectorIndex = neighborSlot;
+            if(!topology->symmetries.empty()){
+                latticeVectorIndex = topology->symmetries[static_cast<std::size_t>(exportSymmetryIndex)]
+                    .permutation[static_cast<std::size_t>(neighborSlot)];
+            }
+            if(latticeVectorIndex < 0 || latticeVectorIndex >= static_cast<int>(topology->latticeVectors.size())){
+                continue;
+            }
+            neighborVectorOverrides[
+                atomIndex * static_cast<std::size_t>(MAX_NEIGHBORS) +
+                static_cast<std::size_t>(neighborSlot)
+            ] = topology->latticeVectors[static_cast<std::size_t>(latticeVectorIndex)];
+        }
+    }
+    analysis.setNeighborLatticeVectorOverrides(
+        std::move(neighborVectorOverrides),
+        static_cast<std::size_t>(MAX_NEIGHBORS)
+    );
 
     for(size_t i = 0; i < N; ++i){
         if(context.neighborCounts->getInt(i) == 0){

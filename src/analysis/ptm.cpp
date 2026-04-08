@@ -8,40 +8,77 @@
 
 namespace Volt{
 
-// Converts a raw integer code from the PTM library into our high-level enum.
-// This bridges the C API (which returns PTM_MATCH_*) to our StructureType values.
-StructureType PTM::ptmToStructureType(int type){
-    switch(type){
-        case PTM_MATCH_NONE: return StructureType::OTHER;
-        case PTM_MATCH_SC: return StructureType::SC;
-        case PTM_MATCH_FCC: return StructureType::FCC;
-        case PTM_MATCH_HCP: return StructureType::HCP;
-        case PTM_MATCH_ICO: return StructureType::ICO;
-        case PTM_MATCH_BCC: return StructureType::BCC;
-        case PTM_MATCH_DCUB: return StructureType::CUBIC_DIAMOND;
-        case PTM_MATCH_DHEX: return StructureType::HEX_DIAMOND;
-        case PTM_MATCH_GRAPHENE: return StructureType::GRAPHENE;
-        default: assert(false); return StructureType::OTHER;
+struct AuxiliaryPtmMapping{
+    StructureType structureType;
+    int ptmMatchType;
+    int ptmCheckFlag;
+};
+
+inline constexpr std::array<AuxiliaryPtmMapping, 2> kAuxiliaryPtmMappings = {{
+    {StructureType::ICO, PTM_MATCH_ICO, PTM_CHECK_ICO},
+    {StructureType::GRAPHENE, PTM_MATCH_GRAPHENE, PTM_CHECK_GRAPHENE}
+}};
+
+StructureType resolvePtmStructureType(int type, int preferredLatticeType){
+    if(type == PTM_MATCH_NONE){
+        return StructureType::OTHER;
     }
+
+    if(preferredLatticeType > 0){
+        if(const auto* preferredTopology = crystalTopologyByLatticeType(preferredLatticeType)){
+            if(preferredTopology->ptmMatchType == type){
+                return static_cast<StructureType>(preferredTopology->structureType);
+            }
+        }
+    }
+
+    for(const auto& entry : crystalTopologyRegistry().entries()){
+        if(entry.ptmMatchType == type){
+            return static_cast<StructureType>(entry.structureType);
+        }
+    }
+    for(const auto& mapping : kAuxiliaryPtmMappings){
+        if(mapping.ptmMatchType == type){
+            return mapping.structureType;
+        }
+    }
+
+    assert(false);
+    return StructureType::OTHER;
 }
 
-// Maps our enum values back into the integer codes expected by the PTM C routines.
-// This lets us selectively enable or disable each lattice type in the library calls.
+StructureType PTM::ptmToStructureType(int type){
+    return resolvePtmStructureType(type, LATTICE_OTHER);
+}
+
 int PTM::toPtmStructureType(StructureType type){
-    switch (type) {
-        case StructureType::OTHER: return PTM_MATCH_NONE;
-        case StructureType::SC: return PTM_MATCH_SC;
-        case StructureType::FCC: return PTM_MATCH_FCC;
-        case StructureType::HCP: return PTM_MATCH_HCP;
-        case StructureType::ICO: return PTM_MATCH_ICO;
-        case StructureType::BCC: return PTM_MATCH_BCC;
-        case StructureType::CUBIC_DIAMOND: return PTM_MATCH_DCUB;
-        case StructureType::HEX_DIAMOND: return PTM_MATCH_DHEX;
-        case StructureType::GRAPHENE: return PTM_MATCH_GRAPHENE;
-        default: 
-            spdlog::warn("PTM::toPtmStructureType: is not mapped = {}, PTM_MATCH_NONE as fallback", static_cast<int>(type));
-            return PTM_MATCH_NONE;
+    if(type == StructureType::OTHER){
+        return PTM_MATCH_NONE;
     }
+    if(const auto* topology = crystalTopologyByStructureType(static_cast<int>(type))){
+        if(topology->ptmMatchType > 0){
+            return topology->ptmMatchType;
+        }
+    }
+    for(const auto& mapping : kAuxiliaryPtmMappings){
+        if(mapping.structureType == type){
+            return mapping.ptmMatchType;
+        }
+    }
+
+    spdlog::warn("PTM::toPtmStructureType: is not mapped = {}, PTM_MATCH_NONE as fallback", static_cast<int>(type));
+    return PTM_MATCH_NONE;
+}
+
+int PTM::supportedPtmCheckFlags(){
+    int flags = 0;
+    for(const auto& entry : crystalTopologyRegistry().entries()){
+        flags |= entry.ptmCheckFlag;
+    }
+    for(const auto& mapping : kAuxiliaryPtmMappings){
+        flags |= mapping.ptmCheckFlag;
+    }
+    return flags;
 }
 
 // Initialize the PTM algorithm, including global one-time setup and neighbor-search capacity.
@@ -220,8 +257,7 @@ static int getNeighbors(void* vdata, size_t, size_t atomIndex, int numRequested,
 
     int dummy = 0;
     ptm_decode_correspondences(
-        // FCC as default seed
-        PTM_MATCH_FCC,
+        finder->correspondenceSeedPtmType(),
         // Mask generated in cacheNeighbors
         cachedNeighbors[atomIndex],
         env->correspondences,
@@ -270,7 +306,7 @@ StructureType PTM::Kernel::identifyStructure(size_t particleIndex, const std::ve
     nbrdata.centralAtomIndex = particleIndex;
     nbrdata.centralResults = &results();
 
-    int32_t flags = PTM_CHECK_SC | PTM_CHECK_FCC | PTM_CHECK_HCP | PTM_CHECK_BCC | PTM_CHECK_DCUB | PTM_CHECK_DHEX;
+    const int32_t flags = PTM::supportedPtmCheckFlags();
 
     ptm_result_t result;
     int errorCode = ptm_index(
@@ -308,7 +344,7 @@ StructureType PTM::Kernel::identifyStructure(size_t particleIndex, const std::ve
         _bestTemplateIndex = 0;
         _F.setZero();
     }else{
-        _structureType = ptmToStructureType(result.structure_type);
+        _structureType = resolvePtmStructureType(result.structure_type, _algorithm._inputCrystalStructure);
         int ptmType = PTM::toPtmStructureType(_structureType);
 
         _corrCode = ptm_encode_correspondences(
