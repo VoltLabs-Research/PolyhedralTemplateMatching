@@ -2,6 +2,12 @@
 
 `PolyhedralTemplateMatching` classifies atoms using PTM and exports the reconstructed state consumed by downstream DXA-compatible tools.
 
+## One-Command Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/VoltLabs-Research/CoreToolkit/main/scripts/install-plugin.sh | bash -s -- PolyhedralTemplateMatching
+```
+
 ## CLI
 
 Usage:
@@ -20,19 +26,3 @@ polyhedral-template-matching <lammps_file> [output_base] [options]
 | `--rmsd <float>` | No | RMSD threshold for PTM. | `0.1` |
 | `--dissolveSmallClusters` | No | Mark small clusters as `OTHER` after clustering. | `false` |
 | `--help` | No | Print CLI help. | |
-
-## Build With CoreToolkit
-
-```bash
-cd /path/to/voltlabs-ecosystem/tools/CoreToolkit
-conan create . -nr
-
-cd /path/to/voltlabs-ecosystem/plugins/StructureIdentification
-conan create . -nr
-
-cd /path/to/voltlabs-ecosystem/plugins/CommonNeighborAnalysis
-conan create . -nr
-
-cd /path/to/voltlabs-ecosystem/plugins/PolyhedralTemplateMatching
-conan create . -nr
-```
