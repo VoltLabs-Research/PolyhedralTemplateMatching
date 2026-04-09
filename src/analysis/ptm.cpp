@@ -8,77 +8,42 @@
 
 namespace Volt{
 
-struct AuxiliaryPtmMapping{
-    StructureType structureType;
-    int ptmMatchType;
-    int ptmCheckFlag;
-};
-
-inline constexpr std::array<AuxiliaryPtmMapping, 2> kAuxiliaryPtmMappings = {{
-    {StructureType::ICO, PTM_MATCH_ICO, PTM_CHECK_ICO},
-    {StructureType::GRAPHENE, PTM_MATCH_GRAPHENE, PTM_CHECK_GRAPHENE}
-}};
-
-StructureType resolvePtmStructureType(int type, int preferredLatticeType){
-    if(type == PTM_MATCH_NONE){
-        return StructureType::OTHER;
-    }
-
-    if(preferredLatticeType > 0){
-        if(const auto* preferredTopology = crystalTopologyByLatticeType(preferredLatticeType)){
-            if(preferredTopology->ptmMatchType == type){
-                return static_cast<StructureType>(preferredTopology->structureType);
-            }
-        }
-    }
-
-    for(const auto& entry : crystalTopologyRegistry().entries()){
-        if(entry.ptmMatchType == type){
-            return static_cast<StructureType>(entry.structureType);
-        }
-    }
-    for(const auto& mapping : kAuxiliaryPtmMappings){
-        if(mapping.ptmMatchType == type){
-            return mapping.structureType;
-        }
-    }
-
-    assert(false);
-    return StructureType::OTHER;
-}
-
 StructureType PTM::ptmToStructureType(int type){
-    return resolvePtmStructureType(type, LATTICE_OTHER);
+    switch(type){
+        case PTM_MATCH_NONE: return StructureType::OTHER;
+        case PTM_MATCH_SC: return StructureType::SC;
+        case PTM_MATCH_FCC: return StructureType::FCC;
+        case PTM_MATCH_HCP: return StructureType::HCP;
+        case PTM_MATCH_ICO: return StructureType::ICO;
+        case PTM_MATCH_BCC: return StructureType::BCC;
+        case PTM_MATCH_DCUB: return StructureType::CUBIC_DIAMOND;
+        case PTM_MATCH_DHEX: return StructureType::HEX_DIAMOND;
+        case PTM_MATCH_GRAPHENE: return StructureType::GRAPHENE;
+        default:
+            assert(false);
+            return StructureType::OTHER;
+    }
 }
 
 int PTM::toPtmStructureType(StructureType type){
-    if(type == StructureType::OTHER){
-        return PTM_MATCH_NONE;
+    switch(type){
+        case StructureType::OTHER: return PTM_MATCH_NONE;
+        case StructureType::SC: return PTM_MATCH_SC;
+        case StructureType::FCC: return PTM_MATCH_FCC;
+        case StructureType::HCP: return PTM_MATCH_HCP;
+        case StructureType::ICO: return PTM_MATCH_ICO;
+        case StructureType::BCC: return PTM_MATCH_BCC;
+        case StructureType::CUBIC_DIAMOND: return PTM_MATCH_DCUB;
+        case StructureType::HEX_DIAMOND: return PTM_MATCH_DHEX;
+        case StructureType::GRAPHENE: return PTM_MATCH_GRAPHENE;
+        default:
+            spdlog::warn("PTM::toPtmStructureType: is not mapped = {}, PTM_MATCH_NONE as fallback", static_cast<int>(type));
+            return PTM_MATCH_NONE;
     }
-    if(const auto* topology = crystalTopologyByStructureType(static_cast<int>(type))){
-        if(topology->ptmMatchType > 0){
-            return topology->ptmMatchType;
-        }
-    }
-    for(const auto& mapping : kAuxiliaryPtmMappings){
-        if(mapping.structureType == type){
-            return mapping.ptmMatchType;
-        }
-    }
-
-    spdlog::warn("PTM::toPtmStructureType: is not mapped = {}, PTM_MATCH_NONE as fallback", static_cast<int>(type));
-    return PTM_MATCH_NONE;
 }
 
 int PTM::supportedPtmCheckFlags(){
-    int flags = 0;
-    for(const auto& entry : crystalTopologyRegistry().entries()){
-        flags |= entry.ptmCheckFlag;
-    }
-    for(const auto& mapping : kAuxiliaryPtmMappings){
-        flags |= mapping.ptmCheckFlag;
-    }
-    return flags;
+    return PTM_CHECK_ALL;
 }
 
 // Initialize the PTM algorithm, including global one-time setup and neighbor-search capacity.
@@ -344,7 +309,7 @@ StructureType PTM::Kernel::identifyStructure(size_t particleIndex, const std::ve
         _bestTemplateIndex = 0;
         _F.setZero();
     }else{
-        _structureType = resolvePtmStructureType(result.structure_type, _algorithm._inputCrystalStructure);
+        _structureType = ptmToStructureType(result.structure_type);
         int ptmType = PTM::toPtmStructureType(_structureType);
 
         _corrCode = ptm_encode_correspondences(

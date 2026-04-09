@@ -56,12 +56,36 @@ public:
     }
 
     int correspondenceSeedPtmType() const{
-        if(const auto* topology = crystalTopologyByLatticeType(_inputCrystalStructure)){
-            if(topology->ptmMatchType > 0){
-                return topology->ptmMatchType;
-            }
+        switch(_inputCrystalStructure){
+            case LATTICE_SC:
+                return PTM_MATCH_SC;
+            case LATTICE_FCC:
+                return PTM_MATCH_FCC;
+            case LATTICE_HCP:
+                return PTM_MATCH_HCP;
+            case LATTICE_BCC:
+                return PTM_MATCH_BCC;
+            case LATTICE_CUBIC_DIAMOND:
+                return PTM_MATCH_DCUB;
+            case LATTICE_HEX_DIAMOND:
+                return PTM_MATCH_DHEX;
+            case LATTICE_OTHER:
+            case NUM_LATTICE_TYPES:
+                break;
         }
         return PTM_MATCH_FCC;
+    }
+
+    static constexpr bool isCubicLike(StructureType structureType){
+        return structureType == StructureType::SC ||
+            structureType == StructureType::FCC ||
+            structureType == StructureType::BCC ||
+            structureType == StructureType::CUBIC_DIAMOND;
+    }
+
+    static constexpr bool isHexagonalLike(StructureType structureType){
+        return structureType == StructureType::HCP ||
+            structureType == StructureType::HEX_DIAMOND;
     }
 
     static const double (*getTemplate(StructureType structureType, int templateIndex))[3]{
@@ -83,19 +107,22 @@ public:
     ){
         double orientA[4] = { qa.w(), qa.x(), qa.y(), qa.z() };
         double orientB[4] = { qb.w(), qb.x(), qb.y(), qb.z() };
-        const CrystalSymmetryFamily familyA = crystalSymmetryFamilyByStructureType(static_cast<int>(structureTypeA));
-        const CrystalSymmetryFamily familyB = crystalSymmetryFamilyByStructureType(static_cast<int>(structureTypeB));
         double disorientation = std::numeric_limits<double>::infinity();
 
-        if(familyA != CrystalSymmetryFamily::Unknown && familyA == familyB){
-            if(familyA == CrystalSymmetryFamily::Cubic){
+        const bool cubicA = isCubicLike(structureTypeA);
+        const bool cubicB = isCubicLike(structureTypeB);
+        const bool hexA = isHexagonalLike(structureTypeA);
+        const bool hexB = isHexagonalLike(structureTypeB);
+
+        if((cubicA && cubicB) || (hexA && hexB)){
+            if(cubicA){
                 disorientation = static_cast<double>(ptm::quat_disorientation_cubic(orientA, orientB));
-            }else if(familyA == CrystalSymmetryFamily::Hexagonal){
+            }else if(hexA){
                 disorientation = static_cast<double>(ptm::quat_disorientation_hcp_conventional(orientA, orientB));
             }
-        }else if(familyA == CrystalSymmetryFamily::Cubic && familyB == CrystalSymmetryFamily::Hexagonal){
+        }else if(cubicA && hexB){
             disorientation = static_cast<double>(ptm::quat_disorientation_cubic_to_hexagonal(orientA, orientB));
-        }else if(familyA == CrystalSymmetryFamily::Hexagonal && familyB == CrystalSymmetryFamily::Cubic){
+        }else if(hexA && cubicB){
             disorientation = static_cast<double>(ptm::quat_disorientation_hexagonal_to_cubic(orientA, orientB));
         }
 
@@ -118,10 +145,9 @@ public:
         double orientA[4] = { qa.w(), qa.x(), qa.y(), qa.z() };
         double orientB[4] = { qb.w(), qb.x(), qb.y(), qb.z() };
 
-        const CrystalSymmetryFamily family = crystalSymmetryFamilyByStructureType(static_cast<int>(structureTypeA));
-        if(family == CrystalSymmetryFamily::Cubic){
+        if(isCubicLike(structureTypeA)){
             disorientation = static_cast<double>(ptm::quat_disorientation_cubic(orientA, orientB));
-        }else if(family == CrystalSymmetryFamily::Hexagonal){
+        }else if(isHexagonalLike(structureTypeA)){
             disorientation = static_cast<double>(ptm::quat_disorientation_hcp_conventional(orientA, orientB));
         }else{
             return disorientation;

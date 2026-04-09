@@ -27,6 +27,7 @@ class PtmCrystalInfoProvider final : public StructureAnalysisCrystalInfo{
 public:
     PtmCrystalInfoProvider();
 
+    std::string_view topologyName(int structureType) const override;
     int findClosestSymmetryPermutation(int structureType, const Matrix3& rotation) const override;
     int coordinationNumber(int structureType) const override;
     int commonNeighborIndex(int structureType, int neighborIndex, int commonNeighborSlot) const override;
