@@ -288,6 +288,47 @@ void determineLocalStructuresWithPTM(
         }
     });
 
+    std::vector<Vector3> neighborVectorOverrides(
+        N * static_cast<std::size_t>(MAX_NEIGHBORS),
+        Vector3::Zero()
+    );
+    for(std::size_t atomIndex = 0; atomIndex < N; ++atomIndex){
+        const int structureType = context.structureTypes->getInt(atomIndex);
+        if(structureType == LATTICE_OTHER){
+            continue;
+        }
+
+        const SharedCrystalTopology* topology = sharedCrystalTopology(structureType);
+        const CrystalTopologyEntry* topologyEntry = crystalTopologyByStructureType(structureType);
+        if(!topology || !topologyEntry){
+            continue;
+        }
+
+        const int exportableCount = std::min(localCounts[atomIndex], topology->coordinationNumber);
+        const int exportSymmetryIndex = topologyEntry->exportSymmetryIndex >= 0 &&
+            topologyEntry->exportSymmetryIndex < static_cast<int>(topology->symmetries.size())
+            ? topologyEntry->exportSymmetryIndex
+            : 0;
+        for(int neighborSlot = 0; neighborSlot < exportableCount; ++neighborSlot){
+            int latticeVectorIndex = neighborSlot;
+            if(!topology->symmetries.empty()){
+                latticeVectorIndex = topology->symmetries[static_cast<std::size_t>(exportSymmetryIndex)]
+                    .permutation[static_cast<std::size_t>(neighborSlot)];
+            }
+            if(latticeVectorIndex < 0 || latticeVectorIndex >= static_cast<int>(topology->latticeVectors.size())){
+                continue;
+            }
+            neighborVectorOverrides[
+                atomIndex * static_cast<std::size_t>(MAX_NEIGHBORS) +
+                static_cast<std::size_t>(neighborSlot)
+            ] = topology->latticeVectors[static_cast<std::size_t>(latticeVectorIndex)];
+        }
+    }
+    analysis.setNeighborLatticeVectorOverrides(
+        std::move(neighborVectorOverrides),
+        static_cast<std::size_t>(MAX_NEIGHBORS)
+    );
+
     for(size_t i = 0; i < N; ++i){
         if(context.neighborCounts->getInt(i) == 0){
             context.neighborCounts->setInt(i, localCounts[i]);

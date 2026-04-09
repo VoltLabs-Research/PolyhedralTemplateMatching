@@ -32,18 +32,6 @@ int normalizedStructureType(int structureType){
     return structureType;
 }
 
-bool shouldPreserveNativePtmReference(int structureType){
-    // FCC is consumed downstream with PTM's historical neighbor/symmetry gauge.
-    // Re-adapting it through the shared topology registry changes the reconstructed
-    // dump and cluster transitions enough to alter DXA output.
-    switch(static_cast<StructureType>(normalizedStructureType(structureType))){
-        case StructureType::FCC:
-            return true;
-        default:
-            return false;
-    }
-}
-
 const ptm::refdata_t* ptmReferenceForStructureType(int structureType){
     const StructureType normalized = static_cast<StructureType>(normalizedStructureType(structureType));
     if(normalized == StructureType::OTHER){
@@ -514,16 +502,6 @@ void PtmCrystalInfoProvider::initialize(int structureType) const{
     const int normalizedType = normalizedStructureType(structureType);
     if(_data.find(normalizedType) != _data.end()){
         return;
-    }
-
-    if(shouldPreserveNativePtmReference(normalizedType)){
-        try{
-            _data[normalizedType] = buildReferenceCrystalData(normalizedType);
-            return;
-        }catch(const std::exception&){
-            _data[normalizedType] = PtmCrystalData{};
-            return;
-        }
     }
 
     if(sharedCrystalTopology(normalizedType)){

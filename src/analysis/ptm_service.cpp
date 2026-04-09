@@ -2,6 +2,7 @@
 #include <volt/analysis/structure_analysis_context.h>
 #include <volt/analysis/cluster_graph_builder.h>
 #include <volt/analysis/cluster_graph_io.h>
+#include <volt/analysis/reconstructed_state_canonicalizer.h>
 #include <volt/analysis/structure_analysis.h>
 #include <volt/core/analysis_result.h>
 #include <volt/analysis/ptm_service.h>
@@ -59,6 +60,8 @@ json PolyhedralTemplateMatchingService::compute(
             : std::shared_ptr<std::vector<PtmLocalAtomState>>{};
         determineLocalStructuresWithPTM(analysis, _rmsd, ptmAtomStates);
         computeMaximumNeighborDistanceFromPTM(analysis);
+        ReconstructedStateCanonicalizer::canonicalizeConnectedStructureSymmetries(analysis, context);
+        ReconstructedStateCanonicalizer::canonicalizeNeighborShellsToExportConvention(analysis, context);
         PTMClusterInputAdapter clusterInputAdapter;
         clusterInputAdapter.prepare(analysis, context);
         if(ptmAtomStates){
@@ -67,6 +70,10 @@ json PolyhedralTemplateMatchingService::compute(
         ClusterBuilder clusterBuilder(analysis, context);
         clusterBuilder.build(_dissolveSmallClusters);
         normalizeReconstructedClusterGraphForExport(analysis, context);
+        if(context.inputCrystalType == LATTICE_FCC){
+            analysis.setNeighborLatticeVectorOverrides({}, 0);
+        }
+        ReconstructedStateCanonicalizer::canonicalizeNeighborShellsToExportConvention(analysis, context);
 
         json result = AnalysisResult::success();
 
